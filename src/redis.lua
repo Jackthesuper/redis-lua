@@ -17,6 +17,7 @@ local defaults = {
     port        = 6379,
     tcp_nodelay = true,
     path        = nil,
+    tls         = false
 }
 
 local function merge_defaults(parameters)
@@ -478,13 +479,13 @@ end
 
 client_prototype.quit = function(client)
     request.multibulk(client, 'QUIT')
-    client.network.socket:shutdown()
+    client.network.socket:close()
     return true
 end
 
 client_prototype.shutdown = function(client)
     request.multibulk(client, 'SHUTDOWN')
-    client.network.socket:shutdown()
+    client.network.socket:close()
 end
 
 -- Command pipelining
@@ -803,6 +804,32 @@ end
 
 -- ############################################################################
 
+local function connect_tls(socket, parameters)
+    local tls_params = {
+        mode = "client",
+        protocol = "any",
+        verify = "none",
+        options = { "all", "no_sslv3" }
+    }
+
+    local host, port = parameters.host, tonumber(parameters.port)
+    if parameters.timeout then
+        socket:settimeout(parameters.timeout, 't')
+    end
+
+    local conn, err = socket:connect(host, port)
+    if not conn then
+        redis.error('could not connect to ' .. host .. ':' .. port .. ' [' .. err .. ']')
+    end
+    socket:setoption('tcp-nodelay', parameters.tcp_nodelay)
+    local wrapped = require("ssl").wrap(socket, tls_params)
+    local ok = wrapped:dohandshake()
+    if not ok then
+        redis.error('error in SSL handshake to ' .. host .. ':' .. port)
+    end
+    return wrapped
+end
+
 local function connect_tcp(socket, parameters)
     local host, port = parameters.host, tonumber(parameters.port)
     if parameters.timeout then
@@ -838,9 +865,13 @@ local function create_connection(parameters)
     else
         if parameters.scheme then
             local scheme = parameters.scheme
-            assert(scheme == 'redis' or scheme == 'tcp', 'invalid scheme: ' .. scheme)
+            assert(scheme == 'redis' or scheme == 'tcp' or scheme == 'rediss', 'invalid scheme: ' .. scheme)
         end
-        perform_connection, socket = connect_tcp, require('socket').tcp
+        if parameters.tls then
+            perform_connection, socket = connect_tls, require('socket').tcp
+        else
+            perform_connection, socket = connect_tcp, require('socket').tcp
+        end
     end
 
     return perform_connection(socket(), parameters)
@@ -876,8 +907,8 @@ function redis.connect(...)
             end
         end
     elseif #args > 1 then
-        local host, port, timeout = unpack(args)
-        parameters = { host = host, port = port, timeout = tonumber(timeout) }
+        local host, port, timeout, tls = unpack(args)
+        parameters = { host = host, port = port, timeout = tonumber(timeout), tls = tls }
     end
 
     local commands = redis.commands or {}

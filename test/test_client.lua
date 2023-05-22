@@ -15,6 +15,7 @@ local settings = {
     port     = 6379,
     database = 14,
     password = nil,
+    tls      = os.getenv("REDIS_TLS_ENABLED_TEST") or false
 }
 
 function table.merge(self, tbl2)
@@ -136,7 +137,7 @@ local utils = {
             parameters = settings
         end
 
-        local client = redis.connect(parameters.host, parameters.port)
+        local client = redis.connect(parameters.host, parameters.port, 1, parameters.tls)
         if parameters.password then client:auth(parameters.password) end
         if parameters.database then client:select(parameters.database) end
         client:flushdb()
@@ -223,7 +224,7 @@ end)
 
 context("Client initialization", function()
     test("Can connect successfully", function()
-        local client = redis.connect(settings.host, settings.port)
+        local client = redis.connect({ host = settings.host, port = settings.port, tls = settings.tls })
         assert_type(client, 'table')
         assert_true(table.contains(table.keys(client.network), 'socket'))
 
@@ -249,6 +250,7 @@ context("Client initialization", function()
     end)
 
     test("Can use an already connected socket", function()
+        if settings.tls then return end
         local connection = require('socket').tcp()
         connection:connect(settings.host, settings.port)
 
