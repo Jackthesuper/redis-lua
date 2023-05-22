@@ -2,10 +2,13 @@ package.path = "../src/?.lua;src/?.lua;" .. package.path
 
 pcall(require, "luarocks.require")
 
-local unpack = _G.unpack or table.unpack
+local unpack = table.unpack or unpack
 
 local tsc = require "telescope"
 local redis = require "redis"
+local socket = require "socket"
+local test = tsc.test
+local context = tsc.context
 
 local settings = {
     host     = '127.0.0.1',
@@ -16,8 +19,8 @@ local settings = {
 
 function table.merge(self, tbl2)
     local new_table = {}
-    for k,v in pairs(self) do new_table[k] = v end
-    for k,v in pairs(tbl2) do new_table[k] = v end
+    for k, v in pairs(self) do new_table[k] = v end
+    for k, v in pairs(tbl2) do new_table[k] = v end
     return new_table
 end
 
@@ -82,7 +85,7 @@ function parse_version(version_str)
 
     local info = {
         string  = version_str,
-        compare =  function(self, other)
+        compare = function(self, other)
             if type(other) == 'string' then
                 other = parse_version(other)
             end
@@ -101,7 +104,7 @@ function parse_version(version_str)
 
             return 0
         end,
-        is = function(self, op, other)
+        is      = function(self, op, other)
             local comparation = self:compare(other);
             if op == '<' then return comparation < 0 end
             if op == '<=' then return comparation <= 0 end
@@ -109,14 +112,14 @@ function parse_version(version_str)
             if op == '>=' then return comparation >= 0 end
             if op == '>' then return comparation > 0 end
 
-            error('Invalid comparison operator: '..op)
+            error('Invalid comparison operator: ' .. op)
         end,
     }
 
     if major and minor and patch then
-        info.major  = tonumber(major)
-        info.minor  = tonumber(minor)
-        info.patch  = tonumber(patch)
+        info.major = tonumber(major)
+        info.minor = tonumber(minor)
+        info.patch = tonumber(patch)
         if status then
             info.status = status
         end
@@ -142,7 +145,7 @@ local utils = {
         local version = parse_version(info.redis_version or info.server.redis_version)
 
         if version:is('<', '1.2.0') then
-            error("redis-lua does not support Redis < 1.2.0 (current: "..version.string..")")
+            error("redis-lua does not support Redis < 1.2.0 (current: " .. version.string .. ")")
         end
 
         return client, version
@@ -235,7 +238,7 @@ context("Client initialization", function()
     end)
 
     test("Accepts an URI for connection parameters", function()
-        local uri = 'redis://'..settings.host..':'..settings.port
+        local uri = 'redis://' .. settings.host .. ':' .. settings.port
         local client = redis.connect(uri)
         assert_type(client, 'table')
     end)
@@ -376,7 +379,7 @@ context("Client features", function()
             p:incrby('counter', 30)
             p:exists('counter')
             p:get('counter')
-            p:mset({ foo = 'bar', hoge = 'piyo'})
+            p:mset({ foo = 'bar', hoge = 'piyo' })
             p:del('foo', 'hoge')
             p:mget('does_not_exist', 'counter')
             p:info()
@@ -432,7 +435,7 @@ context("Redis commands", function()
         test("KEYS (client:keys)", function()
             local kvs_prefixed   = shared.kvs_ns_table()
             local kvs_unprefixed = { aaa = 1, aba = 2, aca = 3 }
-            local kvs_all = table.merge(kvs_prefixed, kvs_unprefixed)
+            local kvs_all        = table.merge(kvs_prefixed, kvs_unprefixed)
 
             client:mset(kvs_all)
 
@@ -663,7 +666,7 @@ context("Redis commands", function()
             assert_type(cursor, 'string')
             assert_type(keys, 'table')
 
-            assert_table_values(keys, {'scan:1','scan:2','scan:3','scan:4'})
+            assert_table_values(keys, { 'scan:1', 'scan:2', 'scan:3', 'scan:4' })
         end)
     end)
 
@@ -672,31 +675,31 @@ context("Redis commands", function()
 
         before(function()
             -- TODO: code duplication!
-            list01, list01_values = "list01", { "4","2","3","5","1" }
-            for _,v in ipairs(list01_values) do client:rpush(list01,v) end
+            list01, list01_values = "list01", { "4", "2", "3", "5", "1" }
+            for _, v in ipairs(list01_values) do client:rpush(list01, v) end
 
-            list02, list02_values = "list02", { "1","10","2","20","3","30" }
-            for _,v in ipairs(list02_values) do client:rpush(list02,v) end
+            list02, list02_values = "list02", { "1", "10", "2", "20", "3", "30" }
+            for _, v in ipairs(list02_values) do client:rpush(list02, v) end
         end)
 
         test("SORT (client:sort)", function()
             local sorted = client:sort(list01)
-            assert_table_values(sorted, { "1","2","3","4","5" })
+            assert_table_values(sorted, { "1", "2", "3", "4", "5" })
         end)
 
         test("SORT (client:sort) with parameter ASC/DESC", function()
-            assert_table_values(client:sort(list01, { sort = 'asc'}),  { "1","2","3","4","5" })
-            assert_table_values(client:sort(list01, { sort = 'desc'}), { "5","4","3","2","1" })
+            assert_table_values(client:sort(list01, { sort = 'asc' }), { "1", "2", "3", "4", "5" })
+            assert_table_values(client:sort(list01, { sort = 'desc' }), { "5", "4", "3", "2", "1" })
         end)
 
         test("SORT (client:sort) with parameter LIMIT", function()
-            assert_table_values(client:sort(list01, { limit = { 0,3 } }), { "1","2", "3" })
-            assert_table_values(client:sort(list01, { limit = { 3,2 } }), { "4","5" })
+            assert_table_values(client:sort(list01, { limit = { 0, 3 } }), { "1", "2", "3" })
+            assert_table_values(client:sort(list01, { limit = { 3, 2 } }), { "4", "5" })
         end)
 
         test("SORT (client:sort) with parameter ALPHA", function()
-            assert_table_values(client:sort(list02, { alpha = false }), { "1","2","3","10","20","30" })
-            assert_table_values(client:sort(list02, { alpha = true }),  { "1","10","2","20","3","30" })
+            assert_table_values(client:sort(list02, { alpha = false }), { "1", "2", "3", "10", "20", "30" })
+            assert_table_values(client:sort(list02, { alpha = true }), { "1", "10", "2", "20", "3", "30" })
         end)
 
         test("SORT (client:sort) with parameter GET", function()
@@ -705,8 +708,10 @@ context("Redis commands", function()
             client:rpush('uids', 1002)
             client:rpush('uids', 1000)
             local sortget = {
-                ['uid:1000'] = 'foo',  ['uid:1001'] = 'bar',
-                ['uid:1002'] = 'hoge', ['uid:1003'] = 'piyo',
+                ['uid:1000'] = 'foo',
+                ['uid:1001'] = 'bar',
+                ['uid:1002'] = 'hoge',
+                ['uid:1003'] = 'piyo',
             }
             client:mset(sortget)
 
@@ -719,7 +724,7 @@ context("Redis commands", function()
                 alpha = false,
                 sort  = 'desc',
                 limit = { 1, 4 }
-            }), { "20","10","3","2" })
+            }), { "20", "10", "3", "2" })
         end)
 
         test("SORT (client:sort) with parameter STORE", function()
@@ -790,7 +795,7 @@ context("Redis commands", function()
             local kvs = shared.kvs_table()
 
             assert_true(client:mset(kvs))
-            for k,v in pairs(kvs) do
+            for k, v in pairs(kvs) do
                 assert_equal(client:get(k), v)
             end
 
@@ -801,10 +806,10 @@ context("Redis commands", function()
         end)
 
         test("MSETNX (client:msetnx)", function()
-           assert_true(client:msetnx({ a = '1', b = '2' }))
-           assert_false(client:msetnx({ c = '3', a = '100'}))
-           assert_equal(client:get('a'), '1')
-           assert_equal(client:get('b'), '2')
+            assert_true(client:msetnx({ a = '1', b = '2' }))
+            assert_false(client:msetnx({ c = '3', a = '100' }))
+            assert_equal(client:get('a'), '1')
+            assert_equal(client:get('b'), '2')
         end)
 
         test("MGET (client:mget)", function()
@@ -848,7 +853,7 @@ context("Redis commands", function()
 
             client:set('foo', 2)
             assert_equal(client:incrbyfloat('foo', 20.123), 22.123)
-            assert_equal(client:incrbyfloat('foo', -12.123), 10)
+            assert_equal(client:incrbyfloat('foo', -12.123), 10.0)
             assert_equal(client:incrbyfloat('foo', -110.01), -100.01)
         end)
 
@@ -975,7 +980,7 @@ context("Redis commands", function()
             assert_equal(client:get('binary'), "\0\0\0\1")
 
             assert_error(function()
-              client:setbit('binary', -1, 1)
+                client:setbit('binary', -1, 1)
             end)
 
             assert_error(function()
@@ -1011,11 +1016,11 @@ context("Redis commands", function()
             assert_equal(client:getbit('binary', 63), 0)
 
             assert_error(function()
-              client:getbit('binary', -1)
+                client:getbit('binary', -1)
             end)
 
             assert_error(function()
-              client:getbit('binary', 'invalid')
+                client:getbit('binary', 'invalid')
             end)
 
             assert_error(function()
@@ -1525,7 +1530,7 @@ context("Redis commands", function()
             assert_equal(client:sunionstore('setC', 'setA', 'setB'), 9)
             assert_table_values(
                 client:smembers('setC'),
-                { '0' ,'1' , '10', '2', '3', '4', '5', '6', '9' }
+                { '0', '1', '10', '2', '3', '4', '5', '6', '9' }
             )
 
             client:del('setC')
@@ -1687,12 +1692,12 @@ context("Redis commands", function()
 
             assert_table_values(
                 client:zrange('zset', 0, 2, 'withscores'),
-                  { { 'a', '-10' }, { 'b', '0' }, { 'c', '10' } }
+                { { 'a', '-10' }, { 'b', '0' }, { 'c', '10' } }
             )
 
             assert_table_values(
                 client:zrange('zset', 0, 2, { withscores = true }),
-                  { { 'a', '-10' }, { 'b', '0' }, { 'c', '10' } }
+                { { 'a', '-10' }, { 'b', '0' }, { 'c', '10' } }
             )
 
             assert_error(function()
@@ -1828,19 +1833,19 @@ context("Redis commands", function()
             assert_equal(client:zunionstore('zsetc', 2, 'zseta', 'zsetbNull'), 3)
             assert_table_values(
                 client:zrange('zsetc', 0, -1, 'withscores'),
-                { { 'a', '1' }, { 'b', '2' }, { 'c', '3' }}
+                { { 'a', '1' }, { 'b', '2' }, { 'c', '3' } }
             )
 
             assert_equal(client:zunionstore('zsetc', 2, 'zsetaNull', 'zsetb'), 3)
             assert_table_values(
                 client:zrange('zsetc', 0, -1, 'withscores'),
-                { { 'b', '1' }, { 'c', '2' }, { 'd', '3' }}
+                { { 'b', '1' }, { 'c', '2' }, { 'd', '3' } }
             )
 
             assert_equal(client:zunionstore('zsetc', 2, 'zsetaNull', 'zsetbNull'), 0)
 
             -- with WEIGHTS
-            local opts =  { weights = { 2, 3 } }
+            local opts = { weights = { 2, 3 } }
             assert_equal(client:zunionstore('zsetc', 2, 'zseta', 'zsetb', opts), 4)
             assert_table_values(
                 client:zrange('zsetc', 0, -1, 'withscores'),
@@ -1848,7 +1853,7 @@ context("Redis commands", function()
             )
 
             -- with AGGREGATE (min)
-            local opts =  { aggregate = 'min' }
+            local opts = { aggregate = 'min' }
             assert_equal(client:zunionstore('zsetc', 2, 'zseta', 'zsetb', opts), 4)
             assert_table_values(
                 client:zrange('zsetc', 0, -1, 'withscores'),
@@ -1856,7 +1861,7 @@ context("Redis commands", function()
             )
 
             -- with AGGREGATE (max)
-            local opts =  { aggregate = 'max' }
+            local opts = { aggregate = 'max' }
             assert_equal(client:zunionstore('zsetc', 2, 'zseta', 'zsetb', opts), 4)
             assert_table_values(
                 client:zrange('zsetc', 0, -1, 'withscores'),
@@ -1887,7 +1892,7 @@ context("Redis commands", function()
             assert_equal(client:zinterstore('zsetc', 2, 'zsetaNull', 'zsetbNull'), 0)
 
             -- with WEIGHTS
-            local opts =  { weights = { 2, 3 } }
+            local opts = { weights = { 2, 3 } }
             assert_equal(client:zinterstore('zsetc', 2, 'zseta', 'zsetb', opts), 2)
             assert_table_values(
                 client:zrange('zsetc', 0, -1, 'withscores'),
@@ -1895,7 +1900,7 @@ context("Redis commands", function()
             )
 
             -- with AGGREGATE (min)
-            local opts =  { aggregate = 'min' }
+            local opts = { aggregate = 'min' }
             assert_equal(client:zinterstore('zsetc', 2, 'zseta', 'zsetb', opts), 2)
             assert_table_values(
                 client:zrange('zsetc', 0, -1, 'withscores'),
@@ -1903,7 +1908,7 @@ context("Redis commands", function()
             )
 
             -- with AGGREGATE (max)
-            local opts =  { aggregate = 'max' }
+            local opts = { aggregate = 'max' }
             assert_equal(client:zinterstore('zsetc', 2, 'zseta', 'zsetb', opts), 2)
             assert_table_values(
                 client:zrange('zsetc', 0, -1, 'withscores'),
@@ -2046,7 +2051,7 @@ context("Redis commands", function()
             assert_equal(client:zremrangebyrank('zsetb', -1, -1), 1)
             assert_table_values(client:zrange('zsetb', 0, -1), { 'a', 'b' })
             assert_equal(client:zremrangebyrank('zsetb', -2, -1), 2)
-            assert_table_values(client:zrange('zsetb', 0, -1), { })
+            assert_table_values(client:zrange('zsetb', 0, -1), {})
             assert_false(client:exists('zsetb'))
 
             assert_equal(client:zremrangebyrank('zsetc', 0, 0), 0)
@@ -2232,7 +2237,7 @@ context("Redis commands", function()
             assert_true(client:hmset('metavars', hashKVs))
 
             assert_table_values(client:hkeys('metavars'), table.keys(hashKVs))
-            assert_table_values(client:hkeys('hashDoesNotExist'), { })
+            assert_table_values(client:hkeys('hashDoesNotExist'), {})
 
             assert_error(function()
                 client:set('foo', 'bar')
@@ -2247,7 +2252,7 @@ context("Redis commands", function()
             assert_true(client:hmset('metavars', hashKVs))
 
             assert_table_values(client:hvals('metavars'), table.values(hashKVs))
-            assert_table_values(client:hvals('hashDoesNotExist'), { })
+            assert_table_values(client:hvals('hashDoesNotExist'), {})
 
             assert_error(function()
                 client:set('foo', 'bar')
@@ -2262,7 +2267,7 @@ context("Redis commands", function()
             assert_true(client:hmset('metavars', hashKVs))
 
             assert_true(table.compare(client:hgetall('metavars'), hashKVs))
-            assert_true(table.compare(client:hgetall('hashDoesNotExist'), { }))
+            assert_true(table.compare(client:hgetall('hashDoesNotExist'), {}))
 
             assert_error(function()
                 client:set('foo', 'bar')
@@ -2274,8 +2279,10 @@ context("Redis commands", function()
             if version:is('<', '2.8.0') then return end
 
             local args = {
-                ['field:1st'] = 2, ['field:2nd'] = 2,
-                ['field:3rd'] = 3, ['field:4th'] = 4,
+                ['field:1st'] = 2,
+                ['field:2nd'] = 2,
+                ['field:3rd'] = 3,
+                ['field:4th'] = 4,
             }
 
             client:hmset('key:hash', args)
@@ -2306,14 +2313,23 @@ context("Redis commands", function()
 
             local config = client:config('get', '*')
             assert_type(config, 'table')
-            assert_not_nil(config['list-max-ziplist-entries'])
+            local key = ""
+            local pattern = ""
+            if version:is('>', '3.2.0') then
+                key = "list-max-ziplist-size"
+                pattern = '*max-*-size'
+            else
+                key = "list-max-ziplist-entries"
+                pattern = '*max-*-entries'
+            end
+            assert_not_nil(config[key])
             if version:is('>=', '2.4.0') then
                 assert_not_nil(config.loglevel)
             end
 
-            local config = client:config('get', '*max-*-entries*')
+            local config = client:config('get', pattern)
             assert_type(config, 'table')
-            assert_not_nil(config['list-max-ziplist-entries'])
+            assert_not_nil(config[key])
             if version:is('>=', '2.4.0') then
                 assert_nil(config.loglevel)
             end
@@ -2455,13 +2471,13 @@ context("Redis commands", function()
             replies, processed = client:transaction(function(t)
                 -- empty transaction
             end)
-            assert_table_values(replies, { })
+            assert_table_values(replies, {})
             assert_equal(processed, 0)
 
             replies, processed = client:transaction(function(t)
                 t:discard()
             end)
-            assert_table_values(replies, { })
+            assert_table_values(replies, {})
             assert_equal(processed, 0)
 
             replies, processed = client:transaction(function(t)
@@ -2495,7 +2511,7 @@ context("Redis commands", function()
             local replies, processed = client:transaction(watch_keys, function(t)
                 -- empty transaction
             end)
-            assert_table_values(replies, { })
+            assert_table_values(replies, {})
             assert_equal(processed, 0)
 
             assert_error(function()
@@ -2516,7 +2532,7 @@ context("Redis commands", function()
             replies, processed = client:transaction(opts, function(t)
                 -- empty transaction (with missing call to t:multi())
             end)
-            assert_table_values(replies, { })
+            assert_table_values(replies, {})
             assert_equal(processed, 0)
 
             opts = { watch = 'foo', cas = true }
@@ -2524,10 +2540,10 @@ context("Redis commands", function()
                 t:multi()
                 -- empty transaction
             end)
-            assert_table_values(replies, { })
+            assert_table_values(replies, {})
             assert_equal(processed, 0)
 
-            local redis2 = utils.create_client(settings)        
+            local redis2 = utils.create_client(settings)
             local n = 5
             opts = { watch = 'foobarr', cas = true, retry = 5 }
             replies, processed = client:transaction(opts, function(t)
@@ -2542,8 +2558,8 @@ context("Redis commands", function()
                 assert_response_queued(t:echo('hello'))
                 assert_response_queued(t:echo('redis'))
                 assert_equal(t:commands_queued(), 3)
-                if n>0 then
-                    n = n-1
+                if n > 0 then
+                    n = n - 1
                     redis2:set("foobarr", n)
                 end
                 assert_response_queued(t:exists('foo'))
@@ -2557,11 +2573,12 @@ context("Redis commands", function()
         test("Abstraction options", function()
             -- TODO: more in-depth tests (proxy calls to WATCH)
             local opts, replies, processed
-            local tx_empty = function(t) end
+            local tx_empty = function(t)
+            end
             local tx_cas_empty = function(t) t:multi() end
 
             replies, processed = client:transaction(tx_empty)
-            assert_table_values(replies, { })
+            assert_table_values(replies, {})
 
             assert_error(function()
                 client:transaction(opts, tx_empty)
@@ -2569,7 +2586,7 @@ context("Redis commands", function()
 
             opts = 'foo'
             replies, processed = client:transaction(opts, tx_empty)
-            assert_table_values(replies, { })
+            assert_table_values(replies, {})
             assert_equal(processed, 0)
 
             opts = { 'foo', 'bar' }
@@ -2615,11 +2632,11 @@ context("Redis commands", function()
             client:subscribe('redis-lua-publish')
 
             -- we have one subscriber
-            data = 'data' .. tostring(math.random(1000))
-            publisher = utils.create_client(settings)
+            local data = 'data' .. tostring(math.random(1000))
+            local publisher = utils.create_client(settings)
             assert_equal(publisher:publish('redis-lua-publish', data), 1)
             -- we have data
-            response = client:subscribe('redis-lua-publish')
+            local response = client:subscribe('redis-lua-publish')
             -- {"message","redis-lua-publish","testXXX"}
             assert_true(table.contains(response, 'message'))
             assert_true(table.contains(response, 'redis-lua-publish'))

@@ -9,7 +9,7 @@ local redis = {
 -- the module to a local variable when requiring it: `local redis = require('redis')`.
 Redis = redis
 
-local unpack = _G.unpack or table.unpack
+local unpack = table.unpack or unpack
 local network, request, response = {}, {}, {}
 
 local defaults = {
@@ -96,7 +96,7 @@ local function sort_request(client, command, key, params)
 end
 
 local function zset_range_request(client, command, ...)
-    local args, opts = {...}, { }
+    local args, opts = { ... }, {}
 
     if #args >= 1 and type(args[#args]) == 'table' then
         local options = table.remove(args, #args)
@@ -110,7 +110,7 @@ local function zset_range_request(client, command, ...)
 end
 
 local function zset_range_byscore_request(client, command, ...)
-    local args, opts = {...}, { }
+    local args, opts = { ... }, {}
 
     if #args >= 1 and type(args[#args]) == 'table' then
         local options = table.remove(args, #args)
@@ -129,10 +129,10 @@ local function zset_range_byscore_request(client, command, ...)
 end
 
 local function zset_range_reply(reply, command, ...)
-    local args = {...}
+    local args = { ... }
     local opts = args[4]
     if opts and (opts.withscores or string.lower(tostring(opts)) == 'withscores') then
-        local new_reply = { }
+        local new_reply = {}
         for i = 1, #reply, 2 do
             table.insert(new_reply, { reply[i], reply[i + 1] })
         end
@@ -143,7 +143,7 @@ local function zset_range_reply(reply, command, ...)
 end
 
 local function zset_store_request(client, command, ...)
-    local args, opts = {...}, { }
+    local args, opts = { ... }, {}
 
     if #args >= 1 and type(args[#args]) == 'table' then
         local options = table.remove(args, #args)
@@ -164,9 +164,9 @@ local function zset_store_request(client, command, ...)
 end
 
 local function mset_filter_args(client, command, ...)
-    local args, arguments = {...}, {}
+    local args, arguments = { ... }, {}
     if (#args == 1 and type(args[1]) == 'table') then
-        for k,v in pairs(args[1]) do
+        for k, v in pairs(args[1]) do
             table.insert(arguments, k)
             table.insert(arguments, v)
         end
@@ -178,7 +178,7 @@ end
 
 local function hash_multi_request_builder(builder_callback)
     return function(client, command, ...)
-        local args, arguments = {...}, { }
+        local args, arguments = { ... }, {}
         if #args == 2 then
             table.insert(arguments, args[1])
             for k, v in pairs(args[2]) do
@@ -205,11 +205,11 @@ local function parse_info(response)
             return
         end
 
-        local k,v = kv:match(('([^:]*):([^:]*)'):rep(1))
+        local k, v = kv:match(('([^:]*):([^:]*)'):rep(1))
         if k:match('db%d+') then
             current[k] = {}
             v:gsub(',', function(dbkv)
-                local dbk,dbv = kv:match('([^:]*)=([^:]*)')
+                local dbk, dbv = kv:match('([^:]*)=([^:]*)')
                 current[k][dbk] = dbv
             end)
         else
@@ -221,7 +221,7 @@ local function parse_info(response)
 end
 
 local function scan_request(client, command, ...)
-    local args, req, params = {...}, { }, nil
+    local args, req, params = { ... }, {}, nil
 
     if command == 'SCAN' then
         table.insert(req, args[1])
@@ -246,7 +246,7 @@ local function scan_request(client, command, ...)
 end
 
 local zscan_response = function(reply, command, ...)
-    local original, new = reply[2], { }
+    local original, new = reply[2], {}
     for i = 1, #original, 2 do
         table.insert(new, { original[i], tonumber(original[i + 1]) })
     end
@@ -256,7 +256,7 @@ local zscan_response = function(reply, command, ...)
 end
 
 local hscan_response = function(reply, command, ...)
-    local original, new = reply[2], { }
+    local original, new = reply[2], {}
     for i = 1, #original, 2 do
         new[original[i]] = original[i + 1]
     end
@@ -266,7 +266,7 @@ local hscan_response = function(reply, command, ...)
 end
 
 local function load_methods(proto, commands)
-    local client = setmetatable ({}, getmetatable(proto))
+    local client = setmetatable({}, getmetatable(proto))
 
     for cmd, fn in pairs(commands) do
         if type(fn) ~= 'function' then
@@ -313,7 +313,7 @@ end
 
 function response.read(client)
     local payload = client.network.read(client)
-    local prefix, data = payload:sub(1, -#payload), payload:sub(2)
+    local prefix, data = payload:sub(1, - #payload), payload:sub(2)
 
     -- status reply
     if prefix == '+' then
@@ -325,11 +325,11 @@ function response.read(client)
             return data
         end
 
-   -- error reply
+        -- error reply
     elseif prefix == '-' then
         return client.error('redis error: ' .. data)
 
-   -- integer reply
+        -- integer reply
     elseif prefix == ':' then
         local number = tonumber(data)
 
@@ -342,7 +342,7 @@ function response.read(client)
 
         return number
 
-   -- bulk reply
+        -- bulk reply
     elseif prefix == '$' then
         local length = tonumber(data)
 
@@ -358,7 +358,7 @@ function response.read(client)
 
         return nextchunk:sub(1, -3)
 
-   -- multibulk reply
+        -- multibulk reply
     elseif prefix == '*' then
         local count = tonumber(data)
 
@@ -375,7 +375,7 @@ function response.read(client)
         end
         return list
 
-   -- unknown type of reply
+        -- unknown type of reply
     else
         return client.error('unknown response prefix: ' .. prefix)
     end
@@ -396,9 +396,9 @@ function request.raw(client, buffer)
 end
 
 function request.multibulk(client, command, ...)
-    local args = {...}
+    local args = { ... }
     local argsn = #args
-    local buffer = { true, true }
+    local buffer = { "", true }
 
     if argsn == 1 and type(args[1]) == 'table' then
         argsn, args = #args[1], args[1]
@@ -513,7 +513,7 @@ client_prototype.pipeline = function(client, block)
             end
             return function(self, ...)
                 local reply = cmd(client, ...)
-                table_insert(parsers, #requests, reply.parser)
+                parsers[#requests] = reply.parser
                 return reply
             end
         end
@@ -639,11 +639,11 @@ do
             end
         end
 
-        local transaction_client = setmetatable({}, {__index=client})
-        transaction_client.exec  = function(...)
+        local transaction_client           = setmetatable({}, { __index = client })
+        transaction_client.exec            = function(...)
             client.error('cannot use EXEC inside a transaction block')
         end
-        transaction_client.multi = function(...)
+        transaction_client.multi           = function(...)
             coroutine.yield()
         end
         transaction_client.commands_queued = function()
@@ -656,7 +656,7 @@ do
         transaction_client.discard = function(...)
             local reply = client:discard()
             for i, v in pairs(queued_parsers) do
-                queued_parsers[i]=nil
+                queued_parsers[i] = nil
             end
             coro = initialize_transaction(client, options, block, queued_parsers)
             return reply
@@ -664,7 +664,8 @@ do
         transaction_client.watch = function(...)
             client.error('WATCH inside MULTI is not allowed')
         end
-        setmetatable(transaction_client, { __index = function(t, k)
+        setmetatable(transaction_client, {
+            __index = function(t, k)
                 local cmd = client[k]
                 if type(cmd) == "function" then
                     local function queuey(self, ...)
@@ -673,7 +674,7 @@ do
                         table_insert(queued_parsers, reply.parser or identity)
                         return reply
                     end
-                    t[k]=queuey
+                    t[k] = queuey
                     return queuey
                 else
                     return cmd
@@ -725,13 +726,13 @@ do
         if not arg2 then
             options, block = {}, arg1
         elseif arg1 then --and arg2, implicitly
-            options, block = type(arg1)=="table" and arg1 or { arg1 }, arg2
+            options, block = type(arg1) == "table" and arg1 or { arg1 }, arg2
         else
             client.error("Invalid parameters for redis transaction.")
         end
 
         if not options.watch then
-            local watch_keys = { }
+            local watch_keys = {}
             for i, v in pairs(options) do
                 if tonumber(i) then
                     table.insert(watch_keys, v)
@@ -787,7 +788,7 @@ do
                 end)
 
                 if not matched then
-                    client.error('Unable to match MONITOR payload: '..response)
+                    client.error('Unable to match MONITOR payload: ' .. response)
                 end
 
                 coroutine.yield(message, abort)
@@ -810,7 +811,7 @@ local function connect_tcp(socket, parameters)
 
     local ok, err = socket:connect(host, port)
     if not ok then
-        redis.error('could not connect to '..host..':'..port..' ['..err..']')
+        redis.error('could not connect to ' .. host .. ':' .. port .. ' [' .. err .. ']')
     end
     socket:setoption('tcp-nodelay', parameters.tcp_nodelay)
     return socket
@@ -819,7 +820,7 @@ end
 local function connect_unix(socket, parameters)
     local ok, err = socket:connect(parameters.path)
     if not ok then
-        redis.error('could not connect to '..parameters.path..' ['..err..']')
+        redis.error('could not connect to ' .. parameters.path .. ' [' .. err .. ']')
     end
     return socket
 end
@@ -837,7 +838,7 @@ local function create_connection(parameters)
     else
         if parameters.scheme then
             local scheme = parameters.scheme
-            assert(scheme == 'redis' or scheme == 'tcp', 'invalid scheme: '..scheme)
+            assert(scheme == 'redis' or scheme == 'tcp', 'invalid scheme: ' .. scheme)
         end
         perform_connection, socket = connect_tcp, require('socket').tcp
     end
@@ -852,7 +853,7 @@ function redis.error(message, level)
 end
 
 function redis.connect(...)
-    local args, parameters = {...}, nil
+    local args, parameters = { ... }, nil
 
     if #args == 1 then
         if type(args[1]) == 'table' then
@@ -923,22 +924,22 @@ redis.commands = {
     expire           = command('EXPIRE', {
         response = toboolean
     }),
-    pexpire          = command('PEXPIRE', {     -- >= 2.6
+    pexpire          = command('PEXPIRE', { -- >= 2.6
         response = toboolean
     }),
     expireat         = command('EXPIREAT', {
         response = toboolean
     }),
-    pexpireat        = command('PEXPIREAT', {   -- >= 2.6
+    pexpireat        = command('PEXPIREAT', { -- >= 2.6
         response = toboolean
     }),
     ttl              = command('TTL'),
-    pttl             = command('PTTL'),         -- >= 2.6
+    pttl             = command('PTTL'), -- >= 2.6
     move             = command('MOVE', {
         response = toboolean
     }),
     dbsize           = command('DBSIZE'),
-    persist          = command('PERSIST', {     -- >= 2.2
+    persist          = command('PERSIST', { -- >= 2.2
         response = toboolean
     }),
     keys             = command('KEYS', {
@@ -958,7 +959,7 @@ redis.commands = {
     sort             = command('SORT', {
         request = sort_request,
     }),
-    scan             = command('SCAN', {        -- >= 2.8
+    scan             = command('SCAN', { -- >= 2.8
         request = scan_request,
     }),
 
@@ -967,8 +968,8 @@ redis.commands = {
     setnx            = command('SETNX', {
         response = toboolean
     }),
-    setex            = command('SETEX'),        -- >= 2.0
-    psetex           = command('PSETEX'),       -- >= 2.6
+    setex            = command('SETEX'),  -- >= 2.0
+    psetex           = command('PSETEX'), -- >= 2.6
     mset             = command('MSET', {
         request = mset_filter_args
     }),
@@ -981,22 +982,23 @@ redis.commands = {
     getset           = command('GETSET'),
     incr             = command('INCR'),
     incrby           = command('INCRBY'),
-    incrbyfloat      = command('INCRBYFLOAT', { -- >= 2.6
+    incrbyfloat      = command('INCRBYFLOAT', {
+        -- >= 2.6
         response = function(reply, command, ...)
-            return tonumber(reply)
+            return tonumber(string.format('%.14f', reply))
         end,
     }),
     decr             = command('DECR'),
     decrby           = command('DECRBY'),
-    append           = command('APPEND'),       -- >= 2.0
-    substr           = command('SUBSTR'),       -- >= 2.0
-    strlen           = command('STRLEN'),       -- >= 2.2
-    setrange         = command('SETRANGE'),     -- >= 2.2
-    getrange         = command('GETRANGE'),     -- >= 2.2
-    setbit           = command('SETBIT'),       -- >= 2.2
-    getbit           = command('GETBIT'),       -- >= 2.2
-    bitop            = command('BITOP'),        -- >= 2.6
-    bitcount         = command('BITCOUNT'),     -- >= 2.6
+    append           = command('APPEND'),   -- >= 2.0
+    substr           = command('SUBSTR'),   -- >= 2.0
+    strlen           = command('STRLEN'),   -- >= 2.2
+    setrange         = command('SETRANGE'), -- >= 2.2
+    getrange         = command('GETRANGE'), -- >= 2.2
+    setbit           = command('SETBIT'),   -- >= 2.2
+    getbit           = command('GETBIT'),   -- >= 2.2
+    bitop            = command('BITOP'),    -- >= 2.6
+    bitcount         = command('BITCOUNT'), -- >= 2.6
 
     -- commands operating on lists
     rpush            = command('RPUSH'),
@@ -1010,12 +1012,12 @@ redis.commands = {
     lpop             = command('LPOP'),
     rpop             = command('RPOP'),
     rpoplpush        = command('RPOPLPUSH'),
-    blpop            = command('BLPOP'),        -- >= 2.0
-    brpop            = command('BRPOP'),        -- >= 2.0
-    rpushx           = command('RPUSHX'),       -- >= 2.2
-    lpushx           = command('LPUSHX'),       -- >= 2.2
-    linsert          = command('LINSERT'),      -- >= 2.2
-    brpoplpush       = command('BRPOPLPUSH'),   -- >= 2.2
+    blpop            = command('BLPOP'),      -- >= 2.0
+    brpop            = command('BRPOP'),      -- >= 2.0
+    rpushx           = command('RPUSHX'),     -- >= 2.2
+    lpushx           = command('LPUSHX'),     -- >= 2.2
+    linsert          = command('LINSERT'),    -- >= 2.2
+    brpoplpush       = command('BRPOPLPUSH'), -- >= 2.2
 
     -- commands operating on sets
     sadd             = command('SADD'),
@@ -1036,7 +1038,7 @@ redis.commands = {
     sdiffstore       = command('SDIFFSTORE'),
     smembers         = command('SMEMBERS'),
     srandmember      = command('SRANDMEMBER'),
-    sscan            = command('SSCAN', {       -- >= 2.8
+    sscan            = command('SSCAN', { -- >= 2.8
         request = scan_request,
     }),
 
@@ -1060,68 +1062,75 @@ redis.commands = {
         request  = zset_range_byscore_request,
         response = zset_range_reply,
     }),
-    zrevrangebyscore = command('ZREVRANGEBYSCORE', {    -- >= 2.2
+    zrevrangebyscore = command('ZREVRANGEBYSCORE', {
+        -- >= 2.2
         request  = zset_range_byscore_request,
         response = zset_range_reply,
     }),
-    zunionstore      = command('ZUNIONSTORE', {         -- >= 2.0
+    zunionstore      = command('ZUNIONSTORE', { -- >= 2.0
         request = zset_store_request
     }),
-    zinterstore      = command('ZINTERSTORE', {         -- >= 2.0
+    zinterstore      = command('ZINTERSTORE', { -- >= 2.0
         request = zset_store_request
     }),
     zcount           = command('ZCOUNT'),
     zcard            = command('ZCARD'),
     zscore           = command('ZSCORE'),
     zremrangebyscore = command('ZREMRANGEBYSCORE'),
-    zrank            = command('ZRANK'),                -- >= 2.0
-    zrevrank         = command('ZREVRANK'),             -- >= 2.0
-    zremrangebyrank  = command('ZREMRANGEBYRANK'),      -- >= 2.0
-    zscan            = command('ZSCAN', {               -- >= 2.8
+    zrank            = command('ZRANK'),           -- >= 2.0
+    zrevrank         = command('ZREVRANK'),        -- >= 2.0
+    zremrangebyrank  = command('ZREMRANGEBYRANK'), -- >= 2.0
+    zscan            = command('ZSCAN', {
+        -- >= 2.8
         request  = scan_request,
         response = zscan_response,
     }),
 
     -- commands operating on hashes
-    hset             = command('HSET', {        -- >= 2.0
+    hset             = command('HSET', { -- >= 2.0
         response = toboolean
     }),
-    hsetnx           = command('HSETNX', {      -- >= 2.0
+    hsetnx           = command('HSETNX', { -- >= 2.0
         response = toboolean
     }),
-    hmset            = command('HMSET', {       -- >= 2.0
-        request  = hash_multi_request_builder(function(args, k, v)
+    hmset            = command('HMSET', {
+        -- >= 2.0
+        request = hash_multi_request_builder(function(args, k, v)
             table.insert(args, k)
             table.insert(args, v)
         end),
     }),
-    hincrby          = command('HINCRBY'),      -- >= 2.0
-    hincrbyfloat     = command('HINCRBYFLOAT', {-- >= 2.6
+    hincrby          = command('HINCRBY'), -- >= 2.0
+    hincrbyfloat     = command('HINCRBYFLOAT', {
+        -- >= 2.6
         response = function(reply, command, ...)
             return tonumber(reply)
         end,
     }),
-    hget             = command('HGET'),         -- >= 2.0
-    hmget            = command('HMGET', {       -- >= 2.0
-        request  = hash_multi_request_builder(function(args, k, v)
+    hget             = command('HGET'), -- >= 2.0
+    hmget            = command('HMGET', {
+        -- >= 2.0
+        request = hash_multi_request_builder(function(args, k, v)
             table.insert(args, v)
         end),
     }),
-    hdel             = command('HDEL'),        -- >= 2.0
-    hexists          = command('HEXISTS', {     -- >= 2.0
+    hdel             = command('HDEL'),     -- >= 2.0
+    hexists          = command('HEXISTS', { -- >= 2.0
         response = toboolean
     }),
-    hlen             = command('HLEN'),         -- >= 2.0
-    hkeys            = command('HKEYS'),        -- >= 2.0
-    hvals            = command('HVALS'),        -- >= 2.0
-    hgetall          = command('HGETALL', {     -- >= 2.0
+    hlen             = command('HLEN'),  -- >= 2.0
+    hkeys            = command('HKEYS'), -- >= 2.0
+    hvals            = command('HVALS'), -- >= 2.0
+    hgetall          = command('HGETALL', {
+        -- >= 2.0
         response = function(reply, command, ...)
-            local new_reply = { }
+            local new_reply = {}
             for i = 1, #reply, 2 do new_reply[reply[i]] = reply[i + 1] end
             return new_reply
         end
     }),
-    hscan            = command('HSCAN', {       -- >= 2.8
+    hscan            = command('HSCAN', {
+        -- >= 2.8
         request  = scan_request,
         response = hscan_response,
     }),
@@ -1135,11 +1144,11 @@ redis.commands = {
     select           = command('SELECT'),
 
     -- transactions
-    multi            = command('MULTI'),        -- >= 2.0
-    exec             = command('EXEC'),         -- >= 2.0
-    discard          = command('DISCARD'),      -- >= 2.0
-    watch            = command('WATCH'),        -- >= 2.2
-    unwatch          = command('UNWATCH'),      -- >= 2.2
+    multi            = command('MULTI'),   -- >= 2.0
+    exec             = command('EXEC'),    -- >= 2.0
+    discard          = command('DISCARD'), -- >= 2.0
+    watch            = command('WATCH'),   -- >= 2.2
+    unwatch          = command('UNWATCH'), -- >= 2.2
 
     -- publish - subscribe
     subscribe        = command('SUBSCRIBE'),    -- >= 2.0
@@ -1149,16 +1158,17 @@ redis.commands = {
     publish          = command('PUBLISH'),      -- >= 2.0
 
     -- redis scripting
-    eval             = command('EVAL'),         -- >= 2.6
-    evalsha          = command('EVALSHA'),      -- >= 2.6
-    script           = command('SCRIPT'),       -- >= 2.6
+    eval             = command('EVAL'),    -- >= 2.6
+    evalsha          = command('EVALSHA'), -- >= 2.6
+    script           = command('SCRIPT'),  -- >= 2.6
 
     -- remote server control commands
     bgrewriteaof     = command('BGREWRITEAOF'),
-    config           = command('CONFIG', {     -- >= 2.0
+    config           = command('CONFIG', {
+        -- >= 2.0
         response = function(reply, command, ...)
             if (type(reply) == 'table') then
-                local new_reply = { }
+                local new_reply = {}
                 for i = 1, #reply, 2 do new_reply[reply[i]] = reply[i + 1] end
                 return new_reply
             end
@@ -1166,7 +1176,7 @@ redis.commands = {
             return reply
         end
     }),
-    client           = command('CLIENT'),       -- >= 2.4
+    client           = command('CLIENT'), -- >= 2.4
     slaveof          = command('SLAVEOF'),
     save             = command('SAVE'),
     bgsave           = command('BGSAVE'),
@@ -1174,11 +1184,12 @@ redis.commands = {
     flushdb          = command('FLUSHDB'),
     flushall         = command('FLUSHALL'),
     monitor          = command('MONITOR'),
-    time             = command('TIME'),         -- >= 2.6
-    slowlog          = command('SLOWLOG', {     -- >= 2.2.13
+    time             = command('TIME'), -- >= 2.6
+    slowlog          = command('SLOWLOG', {
+        -- >= 2.2.13
         response = function(reply, command, ...)
             if (type(reply) == 'table') then
-                local structured = { }
+                local structured = {}
                 for index, entry in ipairs(reply) do
                     structured[index] = {
                         id = tonumber(entry[1]),
