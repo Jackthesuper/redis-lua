@@ -1,0 +1,38 @@
+name: test
+
+on: [push]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        luaVersion: ["5.2", "5.3", "5.4"]
+
+    services:
+      redis:
+        image: redis
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: leafo/gh-actions-lua@v10
+        with:
+          luaVersion: ${{ matrix.luaVersion }}
+      - uses: leafo/gh-actions-luarocks@v4
+
+      - name: deps
+        run: |
+          luarocks install telescope
+          luarocks install --only-deps rockspec/redis-lua-tls-0.0.1-0.rockspec
+
+      - name: test
+        run: tsc -f test/*.lua

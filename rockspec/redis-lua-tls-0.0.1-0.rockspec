@@ -1,5 +1,5 @@
 package = "redis-lua-tls"
-version = "0.0.1"
+version = "0.0.1-0"
 
 source = {
     url = "git://github.com/mble/redis-lua",
